@@ -36,6 +36,11 @@
         git --version
       register: git_version_result
       ignore_errors: true
+
+    - name: Agregar usuario al grupo Docker
+      shell: |
+        sudo usermod -aG docker $USER
+      become: true
     
     - name: Mostrar versión de Git
       debug:
