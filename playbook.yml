@@ -35,3 +35,14 @@
         docker --version
         docker-compose --version
         git --version
+
+    - name: Verificar instalación de Git
+      shell: |
+        export PATH=$PATH:/usr/bin
+        git --version
+      register: git_version_result
+      ignore_errors: true
+    
+    - name: Mostrar versión de Git
+      debug:
+        var: git_version_result.stdout
