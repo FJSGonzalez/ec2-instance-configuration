@@ -1,0 +1,37 @@
+---
+- name: Configurar instancia EC2
+  hosts: localhost
+  become: true
+  tasks:
+    - name: Actualizar sistema
+      yum:
+        name: "*"
+        state: latest
+
+    - name: Instalar Docker
+      yum:
+        name: docker
+        state: present
+
+    - name: Iniciar y habilitar Docker
+      systemd:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Instalar Docker Compose
+      get_url:
+        url: "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)"
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
+
+    - name: Instalar Git
+      yum:
+        name: git
+        state: present
+
+    - name: Verificar instalación
+      shell: |
+        docker --version
+        docker-compose --version
+        git --version
