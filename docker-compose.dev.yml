@@ -67,6 +67,37 @@ services:
     ports:
       - "3000:3000"
 
+  
+  stats:
+    image: mastermadriguera/solid-stats:latest
+    ports:
+      - "3004:3004"
+    environment:
+      RMQ_HOST: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: admin
+      DATABASE_NAME: stats
+      DATABASE_USER: admin
+      DATABASE_PASS: admin
+      ME_CONFIG_MONGODB_URL: mongodb://admin:admin@mongo_db:27017
+      DATABASE_URI: mongodb://admin:admin@mongo_db:27017
+      JWT_SECRET: ${JWT_SECRET}
+      ROLE_KEY: ${ROLE_KEY}
+      GIT_CLIENT_ID: ${GIT_CLIENT_ID}
+      GIT_CLIENT_SECRET: ${GIT_CLIENT_SECRET}
+      ME_CONFIG_BASICAUTH: false
+    container_name: stats
+    volumes:
+      - ./apps/stats:/home/node/apps/stats
+      - /home/node/node_modules
+      - .eslintrc.json:/home/node/.eslintrc.json
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
   frontend:
     image: mastermadriguera/solid-frontend:latest
     container_name: frontend
