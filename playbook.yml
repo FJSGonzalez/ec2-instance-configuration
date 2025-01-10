@@ -66,3 +66,11 @@
         - boto
         - boto3
         - docker-compose
+
+    - name: Add user to docker group
+      user:
+        name: "{{ normal_user }}"
+        groups: docker
+        append: yes
+      vars:
+        normal_user: "ec2-user"
