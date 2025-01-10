@@ -1,14 +1,17 @@
----
-- name: "AWS - Install docker"
+- name: Configurar instancia EC2
   hosts: localhost
-  become: yes
+  become: true
   tasks:
-    - name: Update all packages
+    - name: Actualizar sistema
       yum:
-        name: '*'
+        name: "*"
         state: latest
-        update_only: yes
 
+    - name: Instalar Git
+      yum:
+        name: git
+        state: present
+        
     - name: Ensure a list of yum packages are installed
       yum:
         name: "{{ packages }}"
@@ -61,4 +64,22 @@
         packages:
         - boto
         - boto3
-        - docker-compose
+
+    - name: Install Docker Compose CLI Plugin
+      get_url:
+        url: "https://github.com/docker/compose/releases/download/v2.26.0/docker-compose-linux-x86_64"
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
+
+    - name: Verify Docker Compose installation
+      shell: docker compose version
+      register: docker_compose_version
+      failed_when: "'Docker Compose version' not in docker_compose_version.stdout"
+
+    - name: Add user to docker group
+      user:
+        name: "{{ normal_user }}"
+        groups: docker
+        append: yes
+      vars:
+        normal_user: "ec2-user"
