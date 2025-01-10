@@ -1,0 +1,126 @@
+version: "3.9"
+
+services:
+  users:
+    image: mastermadriguera/solid-users:latest
+    container_name: users
+    depends_on:
+      - users_db
+    environment:
+      RMQ_HOST: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      DB_HOST: users_db
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_NAME: users
+      JWT_SECRET: ${JWT_SECRET}
+      ROLE_KEY: ${ROLE_KEY}
+      GIT_CLIENT_ID: ${GIT_CLIENT_ID}
+      GIT_CLIENT_SECRET: ${GIT_CLIENT_SECRET}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+
+  general:
+    image: mastermadriguera/solid-general:latest
+    container_name: general
+    depends_on:
+      - mongo_db
+    environment:
+      RMQ_HOST: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      DATABASE_NAME: general
+      DATABASE_USER: admin
+      DATABASE_PASS: admin
+      DATABASE_URI: mongodb://admin:admin@mongo_db:27017
+      JWT_SECRET: ${JWT_SECRET}
+      ROLE_KEY: ${ROLE_KEY}
+      GIT_CLIENT_ID: ${GIT_CLIENT_ID}
+      GIT_CLIENT_SECRET: ${GIT_CLIENT_SECRET}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+
+  gateway:
+    image: mastermadriguera/solid-gateway:latest
+    container_name: gateway
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      ROLE_KEY: ${ROLE_KEY}
+      GIT_CLIENT_ID: ${GIT_CLIENT_ID}
+      GIT_CLIENT_SECRET: ${GIT_CLIENT_SECRET}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+
+  frontend:
+    image: mastermadriguera/solid-frontend:latest
+    container_name: frontend
+    ports:
+      - "3003:3003"
+    restart: always
+
+  mongo_db:
+    image: mastermadriguera/solid-mongo_db:latest
+    container_name: mongo_db
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin
+      MONGO_INITDB_DATABASE: general
+    volumes:
+      - db_mongo_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 25s
+
+  init-replica:
+    image: mastermadriguera/solid-init-replica:latest
+    container_name: mongo_init_replica
+    depends_on:
+      mongo_db:
+        condition: service_healthy
+    environment:
+      MONGO_USER: "admin"
+      MONGO_PASS: "admin"
+
+  users_db:
+    image: mysql:latest
+    container_name: users_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: users
+    volumes:
+      - db_data:/var/lib/mysql
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    volumes:
+      - ./rabbitmq/data:/var/lib/rabbitmq/
+      - ./rabbitmq/log:/var/log/rabbitmq
+
+volumes:
+  db_data:
+  db_mongo_data:
