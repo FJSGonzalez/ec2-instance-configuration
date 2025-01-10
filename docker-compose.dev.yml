@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   users:
-    image: mastermadriguera/users:latest
+    image: mastermadriguera/solid-users:latest
     container_name: users
     depends_on:
       - users_db
@@ -27,7 +27,7 @@ services:
       - "3001:3001"
 
   general:
-    image: mastermadriguera/general:latest
+    image: mastermadriguera/solid-general:latest
     container_name: general
     depends_on:
       - mongo_db
@@ -51,7 +51,7 @@ services:
       - "3002:3002"
 
   gateway:
-    image: mastermadriguera/gateway:latest
+    image: mastermadriguera/solid-gateway:latest
     container_name: gateway
     environment:
       JWT_SECRET: ${JWT_SECRET}
@@ -68,7 +68,7 @@ services:
       - "3000:3000"
 
   frontend:
-    image: mastermadriguera/frontend:latest
+    image: mastermadriguera/solid-frontend:latest
     container_name: frontend
     ports:
       - "3003:3003"
@@ -93,7 +93,7 @@ services:
       start_period: 25s
 
   init-replica:
-    image: mastermadriguera/mongo_init_replica:latest
+    image: mastermadriguera/solid-mongo_init_replica:latest
     container_name: mongo_init_replica
     depends_on:
       mongo_db:
