@@ -93,7 +93,7 @@ services:
       start_period: 25s
 
   init-replica:
-    image: mastermadriguera/solid-mongo_init_replica:latest
+    image: mastermadriguera/solid-init-replica:latest
     container_name: mongo_init_replica
     depends_on:
       mongo_db:
