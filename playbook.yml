@@ -29,12 +29,14 @@
         name:
           - python3
           - python3-pip
+          # - python3-setuptools  # si te hace falta
         state: present
 
-    - name: Instalar Docker Compose mediante pip
+    - name: Instalar Docker Compose mediante pip (usando pip3)
       pip:
         name: docker-compose
         state: latest
+        executable: pip3
 
     - name: Verificar instalación
       shell: |
@@ -45,9 +47,9 @@
         echo "Git:"
         git --version
 
-    - name: Agregar usuario actual al grupo docker (recomendado con módulo user)
+    - name: Agregar usuario actual al grupo docker
       user:
-        name: "{{ ansible_user_id }}"     # O bien ansible_user si prefieres
+        name: "{{ ansible_user_id }}"
         groups: docker
         append: yes
 
