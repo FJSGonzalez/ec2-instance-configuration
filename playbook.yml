@@ -8,58 +8,72 @@
         name: "*"
         state: latest
 
-    - name: Instalar Docker
-      yum:
-        name: docker
-        state: present
-
-    - name: Iniciar y habilitar Docker
-      systemd:
-        name: docker
-        state: started
-        enabled: true
-
     - name: Instalar Git
       yum:
         name: git
         state: present
-
-    - name: Instalar Python3 y pip (requerido para docker-compose vía pip)
-      yum:
-        name:
-          - python3
-          - python3-pip
-          # - python3-setuptools  # si te hace falta
+        
+    - name: Install docker packages
+      remote_user: ubuntu
+      apt:
+        name: "{{ item }}"
         state: present
-
-    - name: Instalar Docker Compose mediante pip (usando pip3)
-      pip:
-        name: docker-compose
-        state: latest
-        executable: pip3
-
-    - name: Verificar instalación
-      shell: |
-        echo "Docker:"
-        docker --version
-        echo "Docker Compose:"
-        docker-compose --version
-        echo "Git:"
-        git --version
-
-    - name: Agregar usuario actual al grupo docker
+        update_cache: yes
+      with_items:
+        - apt-transport-https
+        - ca-certificates
+        - curl
+        - software-properties-common
+      tags:
+        - docker
+    - name: Add Docker s official GPG key
+      remote_user: ubuntu
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+      tags:
+        - docker
+    - name: Verify that we have the key with the fingerprint
+      remote_user: ubuntu
+      apt_key:
+        id: 0EBFCD88
+        state: present
+      tags:
+        - docker
+    - name: Set up the stable repository
+      remote_user: ubuntu
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable
+        state: present
+        update_cache: yes
+      tags:
+        - docker
+    - name: Update apt packages
+      remote_user: ubuntu
+      apt:
+        update_cache: yes
+      tags:
+        - docker
+    - name: Install docker
+      remote_user: ubuntu
+      apt:
+        name: docker-ce
+        state: present
+        update_cache: yes
+      #notify: Start docker on boot
+      tags:
+        - docker
+    - name: Add remote "ubuntu" user to "docker" group
+      remote_user: ubuntu
       user:
-        name: "{{ ansible_user_id }}"
-        groups: docker
+        name: "ubuntu"
+        group: "docker"
         append: yes
-
-    - name: Verificar instalación de Git
-      shell: |
-        export PATH=$PATH:/usr/bin
-        git --version
-      register: git_version_result
-      ignore_errors: true
-    
-    - name: Mostrar versión de Git
-      debug:
-        var: git_version_result.stdout
+      tags:
+        - docker
+    - name: Install docker-compose
+      remote_user: ubuntu
+      get_url: 
+        url : https://github.com/docker/compose/releases/download/1.25.1-rc1/docker-compose-Linux-x86_64
+        dest: /usr/local/bin/docker-compose
+        mode: 'u+x,g+x'
