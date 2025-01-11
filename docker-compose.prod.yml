@@ -2,7 +2,10 @@ version: "3.9"
 
 services:
   users:
-    image: mastermadriguera/solid-users:latest
+    build:
+      context: .
+      dockerfile: ./apps/users/Dockerfile
+    image: $DOCKER_USERNAME/solid-users-prod:${VERSION_TAG:-latest}
     container_name: users
     depends_on:
       - users_db
@@ -17,6 +20,8 @@ services:
       ROLE_KEY: ${ROLE_KEY}
       GIT_CLIENT_ID: ${GIT_CLIENT_ID}
       GIT_CLIENT_SECRET: ${GIT_CLIENT_SECRET}
+    volumes:
+      - db_data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s
@@ -26,7 +31,10 @@ services:
     restart: always
 
   general:
-    image: mastermadriguera/solid-general:latest
+    build:
+      context: .
+      dockerfile: ./apps/general/Dockerfile
+    image: $DOCKER_USERNAME/solid-general-prod:${VERSION_TAG:-latest}
     container_name: general
     depends_on:
       - mongo_db
@@ -40,6 +48,8 @@ services:
       ROLE_KEY: ${ROLE_KEY}
       GIT_CLIENT_ID: ${GIT_CLIENT_ID}
       GIT_CLIENT_SECRET: ${GIT_CLIENT_SECRET}
+    volumes:
+      - db_mongo_data:/data/db
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
       interval: 30s
@@ -48,31 +58,11 @@ services:
       start_period: 30s
     restart: always
 
-  gateway:
-    image: mastermadriguera/solid-gateway:latest
-    container_name: gateway
-    environment:
-      JWT_SECRET: ${JWT_SECRET}
-      ROLE_KEY: ${ROLE_KEY}
-      GIT_CLIENT_ID: ${GIT_CLIENT_ID}
-      GIT_CLIENT_SECRET: ${GIT_CLIENT_SECRET}
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    restart: always
-
-  frontend:
-    image: mastermadriguera/solid-frontend:latest
-    container_name: frontend
-    ports:
-      - "3003:3003"
-    restart: always
-
   mongo_db:
-    image: mastermadriguera/solid-mongo_db:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: $DOCKER_USERNAME/solid-mongo_db-prod:${VERSION_TAG:-latest}
     container_name: mongo_db
     restart: always
     environment:
@@ -89,7 +79,10 @@ services:
       start_period: 25s
 
   init-replica:
-    image: mastermadriguera/solid-init-replica:latest
+    build:
+      context: ./scripts/mongo
+      dockerfile: Dockerfile
+    image: $DOCKER_USERNAME/solid-init-replica-prod:${VERSION_TAG:-latest}
     container_name: mongo_init_replica
     depends_on:
       mongo_db:
@@ -97,6 +90,58 @@ services:
     environment:
       MONGO_USER: "admin"
       MONGO_PASS: "admin"
+
+  gateway:
+    build:
+      context: .
+      dockerfile: ./apps/gateway/Dockerfile
+    image: $DOCKER_USERNAME/solid-gateway-prod:${VERSION_TAG:-latest}
+    container_name: gateway
+    volumes:
+      - db_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+
+  stats:
+    build:
+      context: .
+      dockerfile: ./apps/stats/Dockerfile
+    image: $DOCKER_USERNAME/solid-stats-prod:${VERSION_TAG:-latest}
+    environment:
+      RMQ_HOST: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      DATABASE_NAME: stats
+      DATABASE_USER: admin
+      DATABASE_PASS: admin
+      DATABASE_URI: mongodb://admin:admin@mongo_db:27017
+      JWT_SECRET: ${JWT_SECRET}
+      ROLE_KEY: ${ROLE_KEY}
+      GIT_CLIENT_ID: ${GIT_CLIENT_ID}
+      GIT_CLIENT_SECRET: ${GIT_CLIENT_SECRET}
+    container_name: stats
+    volumes:
+      - db_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+
+  frontend:
+    build:
+      context: .
+      dockerfile: ./apps/frontend/Dockerfile
+    image: $DOCKER_USERNAME/solid-frontend-prod:${VERSION_TAG:-latest}
+    container_name: frontend
+    volumes:
+      - db_mongo_data:/data/db
+    restart: always
 
   users_db:
     image: mysql:latest
@@ -113,7 +158,6 @@ services:
     container_name: rabbitmq
     ports:
       - "5672:5672"
-      - "15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
