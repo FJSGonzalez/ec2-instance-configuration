@@ -87,10 +87,6 @@ services:
       GIT_CLIENT_SECRET: ${GIT_CLIENT_SECRET}
       ME_CONFIG_BASICAUTH: false
     container_name: stats
-    volumes:
-      - ./apps/stats:/home/node/apps/stats
-      - /home/node/node_modules
-      - .eslintrc.json:/home/node/.eslintrc.json
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
       interval: 30s
