@@ -2,10 +2,7 @@ version: "3.9"
 
 services:
   users:
-    build:
-      context: .
-      dockerfile: ./apps/users/Dockerfile
-    image: $DOCKER_USERNAME/solid-users-prod:${VERSION_TAG:-latest}
+    image: mastermadriguera/solid-users-prod:latest
     container_name: users
     depends_on:
       - users_db
@@ -13,15 +10,13 @@ services:
       RMQ_HOST: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
       DB_HOST: users_db
       DB_PORT: 3306
-      DB_USER: root
-      DB_PASSWORD: root
-      DB_NAME: users
+      DB_USER: ${MYSQL_ROOT_USER}
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      DB_NAME: ${USERS_SERVICE_DB_NAME}
       JWT_SECRET: ${JWT_SECRET}
       ROLE_KEY: ${ROLE_KEY}
       GIT_CLIENT_ID: ${GIT_CLIENT_ID}
       GIT_CLIENT_SECRET: ${GIT_CLIENT_SECRET}
-    volumes:
-      - db_data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s
@@ -31,25 +26,20 @@ services:
     restart: always
 
   general:
-    build:
-      context: .
-      dockerfile: ./apps/general/Dockerfile
-    image: $DOCKER_USERNAME/solid-general-prod:${VERSION_TAG:-latest}
+    image: mastermadriguera/solid-general-prod:latest
     container_name: general
     depends_on:
       - mongo_db
     environment:
       RMQ_HOST: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
-      DATABASE_NAME: general
-      DATABASE_USER: admin
-      DATABASE_PASS: admin
-      DATABASE_URI: mongodb://admin:admin@mongo_db:27017
+      DATABASE_NAME: ${GENERAL_SERVICE_DB_NAME}
+      DATABASE_USER: ${MONGO_USER}
+      DATABASE_PASS: ${MONGO_PASSWORD}
+      DATABASE_URI: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo_db:27017
       JWT_SECRET: ${JWT_SECRET}
       ROLE_KEY: ${ROLE_KEY}
       GIT_CLIENT_ID: ${GIT_CLIENT_ID}
       GIT_CLIENT_SECRET: ${GIT_CLIENT_SECRET}
-    volumes:
-      - db_mongo_data:/data/db
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
       interval: 30s
@@ -59,18 +49,13 @@ services:
     restart: always
 
   mongo_db:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: $DOCKER_USERNAME/solid-mongo_db-prod:${VERSION_TAG:-latest}
+    image: mastermadriguera/solid-mongo_db-prod:latest
     container_name: mongo_db
     restart: always
     environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: admin
-      MONGO_INITDB_DATABASE: general
-    volumes:
-      - db_mongo_data:/data/db
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+      MONGO_INITDB_DATABASE: ${GENERAL_SERVICE_DB_NAME}
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
       interval: 5s
@@ -79,26 +64,18 @@ services:
       start_period: 25s
 
   init-replica:
-    build:
-      context: ./scripts/mongo
-      dockerfile: Dockerfile
-    image: $DOCKER_USERNAME/solid-init-replica-prod:${VERSION_TAG:-latest}
+    image: mastermadriguera/solid-init-replica-prod:latest
     container_name: mongo_init_replica
     depends_on:
       mongo_db:
         condition: service_healthy
     environment:
-      MONGO_USER: "admin"
-      MONGO_PASS: "admin"
+      MONGO_USER: ${MONGO_USER}
+      MONGO_PASS: ${MONGO_PASSWORD}
 
   gateway:
-    build:
-      context: .
-      dockerfile: ./apps/gateway/Dockerfile
-    image: $DOCKER_USERNAME/solid-gateway-prod:${VERSION_TAG:-latest}
+    image: mastermadriguera/solid-gateway-prod:latest
     container_name: gateway
-    volumes:
-      - db_mongo_data:/data/db
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
@@ -108,23 +85,22 @@ services:
     restart: always
 
   stats:
-    build:
-      context: .
-      dockerfile: ./apps/stats/Dockerfile
-    image: $DOCKER_USERNAME/solid-stats-prod:${VERSION_TAG:-latest}
+    image: mastermadriguera/solid-stats-prod:latest
     environment:
       RMQ_HOST: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
-      DATABASE_NAME: stats
-      DATABASE_USER: admin
-      DATABASE_PASS: admin
-      DATABASE_URI: mongodb://admin:admin@mongo_db:27017
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_USER}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_PASSWORD}
+      DATABASE_NAME: ${STATS_SERVICE_DB_NAME}
+      DATABASE_USER: ${MONGO_USER}
+      DATABASE_PASS: ${MONGO_PASSWORD}
+      ME_CONFIG_MONGODB_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo_db:27017
+      DATABASE_URI: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo_db:27017
       JWT_SECRET: ${JWT_SECRET}
       ROLE_KEY: ${ROLE_KEY}
       GIT_CLIENT_ID: ${GIT_CLIENT_ID}
       GIT_CLIENT_SECRET: ${GIT_CLIENT_SECRET}
+      ME_CONFIG_BASICAUTH: false
     container_name: stats
-    volumes:
-      - db_mongo_data:/data/db
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
       interval: 30s
@@ -134,13 +110,8 @@ services:
     restart: always
 
   frontend:
-    build:
-      context: .
-      dockerfile: ./apps/frontend/Dockerfile
-    image: $DOCKER_USERNAME/solid-frontend-prod:${VERSION_TAG:-latest}
+    image: mastermadriguera/solid-frontend-prod:latest
     container_name: frontend
-    volumes:
-      - db_mongo_data:/data/db
     restart: always
 
   users_db:
@@ -148,10 +119,8 @@ services:
     container_name: users_db
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: users
-    volumes:
-      - db_data:/var/lib/mysql
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${USERS_SERVICE_DB_NAME}
 
   rabbitmq:
     image: rabbitmq:4-management-alpine
