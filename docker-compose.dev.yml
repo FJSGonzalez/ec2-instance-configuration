@@ -3,6 +3,8 @@ version: "3.9"
 services:
   users:
     image: mastermadriguera/solid-users:latest
+    ports:
+      - "3001:3001"
     container_name: users
     depends_on:
       - users_db
@@ -10,9 +12,9 @@ services:
       RMQ_HOST: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
       DB_HOST: users_db
       DB_PORT: 3306
-      DB_USER: root
-      DB_PASSWORD: root
-      DB_NAME: users
+      DB_USER: ${MYSQL_ROOT_USER}
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      DB_NAME: ${USERS_SERVICE_DB_NAME}
       JWT_SECRET: ${JWT_SECRET}
       ROLE_KEY: ${ROLE_KEY}
       GIT_CLIENT_ID: ${GIT_CLIENT_ID}
@@ -23,20 +25,20 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-    ports:
-      - "3001:3001"
 
   general:
     image: mastermadriguera/solid-general:latest
+    ports:
+      - "3002:3002"
     container_name: general
     depends_on:
       - mongo_db
     environment:
       RMQ_HOST: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
-      DATABASE_NAME: general
-      DATABASE_USER: admin
-      DATABASE_PASS: admin
-      DATABASE_URI: mongodb://admin:admin@mongo_db:27017
+      DATABASE_NAME: ${GENERAL_SERVICE_DB_NAME}
+      DATABASE_USER: ${MONGO_USER}
+      DATABASE_PASS: ${MONGO_PASSWORD}
+      DATABASE_URI: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo_db:27017
       JWT_SECRET: ${JWT_SECRET}
       ROLE_KEY: ${ROLE_KEY}
       GIT_CLIENT_ID: ${GIT_CLIENT_ID}
@@ -47,58 +49,6 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-    ports:
-      - "3002:3002"
-
-  gateway:
-    image: mastermadriguera/solid-gateway:latest
-    container_name: gateway
-    environment:
-      JWT_SECRET: ${JWT_SECRET}
-      ROLE_KEY: ${ROLE_KEY}
-      GIT_CLIENT_ID: ${GIT_CLIENT_ID}
-      GIT_CLIENT_SECRET: ${GIT_CLIENT_SECRET}
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    ports:
-      - "3000:3000"
-
-  
-  stats:
-    image: mastermadriguera/solid-stats:latest
-    ports:
-      - "3004:3004"
-    environment:
-      RMQ_HOST: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
-      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
-      ME_CONFIG_MONGODB_ADMINPASSWORD: admin
-      DATABASE_NAME: stats
-      DATABASE_USER: admin
-      DATABASE_PASS: admin
-      ME_CONFIG_MONGODB_URL: mongodb://admin:admin@mongo_db:27017
-      DATABASE_URI: mongodb://admin:admin@mongo_db:27017
-      JWT_SECRET: ${JWT_SECRET}
-      ROLE_KEY: ${ROLE_KEY}
-      GIT_CLIENT_ID: ${GIT_CLIENT_ID}
-      GIT_CLIENT_SECRET: ${GIT_CLIENT_SECRET}
-      ME_CONFIG_BASICAUTH: false
-    container_name: stats
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-
-  frontend:
-    image: mastermadriguera/solid-frontend:latest
-    container_name: frontend
-    ports:
-      - "3003:3003"
 
   mongo_db:
     image: mastermadriguera/solid-mongo_db:latest
@@ -107,9 +57,9 @@ services:
     ports:
       - "27017:27017"
     environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: admin
-      MONGO_INITDB_DATABASE: general
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+      MONGO_INITDB_DATABASE: ${GENERAL_SERVICE_DB_NAME}
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
       interval: 5s
@@ -124,34 +74,82 @@ services:
       mongo_db:
         condition: service_healthy
     environment:
-      MONGO_USER: "admin"
-      MONGO_PASS: "admin"
+      MONGO_USER: ${MONGO_USER}
+      MONGO_PASS: ${MONGO_PASSWORD}
 
   mongo_express:
-    image: mongo-express:latest
+    image: mongo-express
     container_name: mongo_express
     ports:
       - "8081:8081"
     environment:
-      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
-      ME_CONFIG_MONGODB_ADMINPASSWORD: admin
-      ME_CONFIG_MONGODB_URL: mongodb://admin:admin@mongo_db:27017
-      ME_CONFIG_BASICAUTH: "false"
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_USER}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_PASSWORD}
+      ME_CONFIG_MONGODB_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo_db:27017
+      ME_CONFIG_BASICAUTH: false
+
+  gateway:
+    image: mastermadriguera/solid-gateway:latest
+    ports:
+      - "3000:3000"
+    container_name: gateway
+    depends_on:
+      - mongo_db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  stats:
+    image: mastermadriguera/solid-stats:latest
+    ports:
+      - "3004:3004"
+    environment:
+      RMQ_HOST: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_USER}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_PASSWORD}
+      DATABASE_NAME: ${STATS_SERVICE_DB_NAME}
+      DATABASE_USER: ${MONGO_USER}
+      DATABASE_PASS: ${MONGO_PASSWORD}
+      ME_CONFIG_MONGODB_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo_db:27017
+      DATABASE_URI: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo_db:27017
+      JWT_SECRET: ${JWT_SECRET}
+      ROLE_KEY: ${ROLE_KEY}
+      GIT_CLIENT_ID: ${GIT_CLIENT_ID}
+      GIT_CLIENT_SECRET: ${GIT_CLIENT_SECRET}
+      ME_CONFIG_BASICAUTH: false
+    container_name: stats
+    depends_on:
+      - mongo_db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  frontend:
+    image: mastermadriguera/solid-frontend:latest
+    ports:
+      - "3003:3003"
+    container_name: frontend
 
   users_db:
     image: mysql:latest
     container_name: users_db
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: users
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${USERS_SERVICE_DB_NAME}
     ports:
       - "3306:3306"
     volumes:
       - db_data:/var/lib/mysql
 
   adminer:
-    image: adminer:latest
+    image: adminer
     container_name: adminer
     restart: always
     ports:
