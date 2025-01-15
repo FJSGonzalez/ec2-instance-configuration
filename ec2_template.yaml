@@ -1,0 +1,111 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "CloudFormation template to create a t2.large EC2 instance with HTTP and SSH open, configurable for dev or prod"
+
+Parameters:
+  VpcIdParameter:
+    Type: AWS::EC2::VPC::Id
+    Description: "ID of the VPC where the Security Group will be created"
+  
+  KeyPairParameter:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: "Name of an existing Key Pair to access via SSH"
+    Default: "MiKeyPair"
+  
+  EnvironmentType:
+    Type: String
+    Description: "Specify the environment type (dev or prod)"
+    Default: "dev"
+    AllowedValues:
+      - dev
+      - prod
+
+Resources:
+  MySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Allows HTTP (80) and SSH (22) traffic from any source"
+      VpcId: !Ref VpcIdParameter
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+  MyEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0ca9fb66e076a6e32
+      InstanceType: t2.large
+      KeyName: !Ref KeyPairParameter
+      SecurityGroupIds:
+        - !Ref MySecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 20
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          yum update -y
+          yum upgrade -y
+          amazon-linux-extras enable ansible2
+          yum install -y ansible
+
+          # Define URLs based on the selected environment
+          if [ "${EnvironmentType}" == "dev" ]; then
+            PLAYBOOK_URL="https://raw.githubusercontent.com/FJSGonzalez/ec2-instance-configuration/refs/heads/main/playbook.yml"
+            COMPOSE_URL="https://raw.githubusercontent.com/FJSGonzalez/ec2-instance-configuration/refs/heads/main/docker-compose.dev.yml"
+          else
+            PLAYBOOK_URL="https://raw.githubusercontent.com/FJSGonzalez/ec2-instance-configuration/refs/heads/main/playbook.yml"
+            COMPOSE_URL="https://raw.githubusercontent.com/FJSGonzalez/ec2-instance-configuration/refs/heads/main/docker-compose.prod.yml"
+          fi
+
+          ENV_FILE_PATH="/home/ec2-user/.env"
+          curl -o /home/ec2-user/playbook.yml $PLAYBOOK_URL
+          curl -o /home/ec2-user/docker-compose.yml $COMPOSE_URL
+
+          cat <<EOT >> $ENV_FILE_PATH
+          # General Environment Configuration
+          ENVIRONMENT_TYPE="${EnvironmentType}"
+
+          # Docker Configuration
+          DOCKER_USERNAME=""
+
+          # JWT Configuration
+          JWT_SECRET=""
+          ROLE_KEY=""
+
+          # RabbitMQ Configuration
+          RABBITMQ_USER=""
+          RABBITMQ_PASSWORD=""
+
+          # Git Configuration
+          GIT_CLIENT_ID=""
+          GIT_CLIENT_SECRET=""
+
+          # MongoDB Configuration
+          MONGO_USER=""
+          MONGO_PASSWORD=""
+
+          # MySQL Configuration
+          MYSQL_ROOT_PASSWORD=""
+          MYSQL_ROOT_USER=""
+
+          # Users Service Configuration
+          USERS_SERVICE_DB_NAME=""
+
+          # Stats Service Configuration
+          STATS_SERVICE_DB_NAME=""
+
+          # General Service Configuration
+          GENERAL_SERVICE_DB_NAME=""
+          EOT
+
+
+          ansible-playbook /home/ec2-user/playbook.yml > /home/ec2-user/playbook.log 2>&1
+          docker compose -f /home/ec2-user/docker-compose.yml pull
+          docker compose -f /home/ec2-user/docker-compose.yml up -d
